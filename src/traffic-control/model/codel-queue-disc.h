@@ -206,6 +206,10 @@ private:
   uint32_t m_state2;                      //!< Number of times we perform next drop while in dropping state
   uint32_t m_state3;                      //!< Number of times we enter drop state and drop the fist packet
   uint32_t m_states;                      //!< Total number of times we are in state 1, state 2, or state 3
+  uint32_t k;                       //!< k parameter in LIFO-Codel
+  long double mean;                 //!< the mean of all sojourn times
+  long double max_;                 //!< the max of all sojourn times
+  uint32_t dropped_total_count;     //!< keeps track of all dropped packets
 };
 
 } // namespace ns3

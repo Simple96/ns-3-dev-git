@@ -126,7 +126,11 @@ CoDelQueueDisc::CoDelQueueDisc ()
     m_state1 (0),
     m_state2 (0),
     m_state3 (0),
-    m_states (0)
+    m_states (0),
+    k(0),
+    mean(0.0),
+    max_(0),
+    dropped_total_count(0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -218,6 +222,14 @@ CoDelQueueDisc::OkToDrop (Ptr<QueueDiscItem> item, uint32_t now)
       okToDrop = true;
       ++m_state1;
     }
+
+  if (okToDrop) {
+      mean = (mean * dropped_total_count + sojournTime) * 1.0 / 1.0 * (1 + dropped_total_count);
+      dropped_total_count++;
+      if (sojournTime > max_)
+          max_ = sojournTime;
+  }
+
   return okToDrop;
 }
 
@@ -258,38 +270,46 @@ CoDelQueueDisc::DoDequeue (void)
           m_state2++;
           while (m_dropping && CoDelTimeAfterEq (now, m_dropNext))
             {
-              // It's time for the next drop. Drop the current packet and
-              // dequeue the next. The dequeue might take us out of dropping
-              // state. If not, schedule the next drop.
-              // A large amount of packets in queue might result in drop
-              // rates so high that the next drop should happen now,
-              // hence the while loop.
-              NS_LOG_LOGIC ("Sojourn time is still above target and it's time for next drop; dropping " << item);
-              DropAfterDequeue (item, TARGET_EXCEEDED_DROP);
-
-              ++m_count;
-              NewtonStep ();
-              item = GetInternalQueue (0)->Dequeue ();
-
-              if (item)
-                {
-                  NS_LOG_LOGIC ("Popped " << item);
-                  NS_LOG_LOGIC ("Number packets remaining " << GetInternalQueue (0)->GetNPackets ());
-                  NS_LOG_LOGIC ("Number bytes remaining " << GetInternalQueue (0)->GetNBytes ());
+                double theta;
+                if(dropped_total_count == 0) {
+                    k = 1;
+                    theta = 1;
+                } else {
+                    k++;
+                    theta = max_ / mean;
                 }
+                if (k * 1.0 > theta){
+                    // It's time for the next drop. Drop the current packet and
+                    // dequeue the next. The dequeue might take us out of dropping
+                    // state. If not, schedule the next drop.
+                    // A large amount of packets in queue might result in drop
+                    // rates so high that the next drop should happen now,
+                    // hence the while loop.
+                    NS_LOG_LOGIC("Sojourn time is still above target and it's time for next drop; dropping " << item);
+                    DropAfterDequeue(item, TARGET_EXCEEDED_DROP);
 
-              if (!OkToDrop (item, now))
-                {
-                  /* leave dropping state */
-                  NS_LOG_LOGIC ("Leaving dropping state");
-                  m_dropping = false;
-                }
-              else
-                {
-                  /* schedule the next drop */
-                  NS_LOG_LOGIC ("Running ControlLaw for input m_dropNext: " << (double)m_dropNext / 1000000);
-                  m_dropNext = ControlLaw (m_dropNext);
-                  NS_LOG_LOGIC ("Scheduled next drop at " << (double)m_dropNext / 1000000);
+                    ++m_count;
+                    NewtonStep();
+                    item = GetInternalQueue(0)->Dequeue();
+
+                    if (item) {
+                        NS_LOG_LOGIC("Popped " << item);
+                        NS_LOG_LOGIC("Number packets remaining " << GetInternalQueue(0)->GetNPackets());
+                        NS_LOG_LOGIC("Number bytes remaining " << GetInternalQueue(0)->GetNBytes());
+                    }
+
+                    if (!OkToDrop(item, now)) {
+                        /* leave dropping state */
+                        NS_LOG_LOGIC("Leaving dropping state");
+                        m_dropping = false;
+                    } else {
+                        /* schedule the next drop */
+                        NS_LOG_LOGIC("Running ControlLaw for input m_dropNext: " << (double) m_dropNext / 1000000);
+                        m_dropNext = ControlLaw(m_dropNext);
+                        NS_LOG_LOGIC("Scheduled next drop at " << (double) m_dropNext / 1000000);
+                    }
+                } else {
+                    m_dropping = 0;
                 }
             }
         }

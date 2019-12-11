@@ -595,13 +595,23 @@ Queue<Item>::DoPeek (ConstIterator pos) const
 template <typename Item>
 typename Queue<Item>::ConstIterator Queue<Item>::begin (void) const
 {
-  return m_packets.cbegin ();
+//    return m_packets.cbegin ();
+    //*
+  auto it = m_packets.cend ();
+  --it;
+    return it;
+    // */
 }
 
 template <typename Item>
 typename Queue<Item>::Iterator Queue<Item>::begin (void)
 {
-  return m_packets.begin ();
+//    return m_packets.begin ();
+   //*
+  Queue<Item>::Iterator it = m_packets.end ();
+  --it;
+  return it;
+     //*/
 }
 
 template <typename Item>
